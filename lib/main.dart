@@ -1,3 +1,5 @@
+import 'dart:async';
+
 import 'package:flutter/material.dart';
 import 'package:flutter/services.dart';
 
@@ -31,6 +33,8 @@ class MyHomePage extends StatefulWidget {
 }
 
 class _MyHomePageState extends State<MyHomePage> {
+  late StreamSubscription _streamSubscription;
+
   void _incrementCounter() async {
     int level = await batteryChannel.invokeMethod('getBatteryLevel');
     batteryLevel = '$level';
@@ -39,22 +43,48 @@ class _MyHomePageState extends State<MyHomePage> {
     }
   }
 
+  // method channel
+  // use to send message to native receive response
+  // send message using invoke method , receive response
+  // we can use it vise versa using  setMethodCallHandler listen to invoke coming method from native
   static const batteryChannel = MethodChannel('battery');
+
+  // event channel
+  // one direction , stream message
+  static const chargingChannel = EventChannel('charging');
   String batteryLevel = 'waiting ...';
+  String chargingLevel = 'streaming ...';
 
   @override
   void initState() {
     // TODO: implement initState
     super.initState();
     onListenBattery();
+    onBatteryStream();
   }
-  onListenBattery(){
+
+  void onBatteryStream() {
+    _streamSubscription =
+        chargingChannel.receiveBroadcastStream().listen((event) {
+      chargingLevel = event;
+      if (mounted) setState(() {});
+    });
+  }
+
+  onListenBattery() {
     batteryChannel.setMethodCallHandler((call) async {
       if (call.method == "reportBatteryLevel") {
         batteryLevel = '${call.arguments}';
         if (mounted) setState(() {});
       }
     });
+  }
+
+  @override
+  void dispose() {
+    // TODO: implement dispose
+    super.dispose();
+    _streamSubscription.cancel();
   }
 
   @override
@@ -67,10 +97,11 @@ class _MyHomePageState extends State<MyHomePage> {
         child: Column(
           mainAxisAlignment: MainAxisAlignment.center,
           children: <Widget>[
-            const Text(
-              'You have pushed the button this many times:',
-            ),
             Text(batteryLevel),
+            SizedBox(
+              height: 30,
+            ),
+            Text(chargingLevel)
           ],
         ),
       ),
